@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, User, Phone, Users, MessageSquare, AlertCircle, CheckCircle2, Sparkles, Check } from 'lucide-react';
+import { UserPlus, User, Phone, Users, MessageSquare, AlertCircle, CheckCircle2, Sparkles, Check, Ticket, X } from 'lucide-react';
 import TableSelector from './TableSelector';
+import DigitalEventPass from './DigitalEventPass';
 import { canTableAccommodate } from '../utils/seating';
 import { validateGuestMobile } from '../utils/validation';
 
 export default function AddGuestForm({
   tables,
   guests,
+  occasion,
   onSaveGuest,
   onViewGuestList,
 }) {
@@ -18,6 +20,7 @@ export default function AddGuestForm({
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
   const [successInfo, setSuccessInfo] = useState(null);
+  const [showPassModal, setShowPassModal] = useState(false);
 
   // If table capacity changes or total members change, check if table can still accommodate
   useEffect(() => {
@@ -129,7 +132,7 @@ export default function AddGuestForm({
 
       {/* Success Notification */}
       {successInfo && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs sm:text-sm font-medium flex items-center justify-between shadow-sm animate-fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs sm:text-sm font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
@@ -141,12 +144,25 @@ export default function AddGuestForm({
               )}
             </div>
           </div>
-          <button
-            onClick={() => setSuccessInfo(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs ml-3"
-          >
-            Dismiss
-          </button>
+          <div className="flex items-center gap-2">
+            {successInfo.attendanceStatus === 'Attending' && (
+              <button
+                type="button"
+                onClick={() => setShowPassModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 shadow-sm cursor-pointer"
+              >
+                <Ticket className="w-3.5 h-3.5" />
+                <span>View & Download Pass</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setSuccessInfo(null)}
+              className="text-emerald-700 hover:text-emerald-900 font-bold text-xs px-2 py-1"
+            >
+              Dismiss
+            </button>
+          </div>
         </div>
       )}
 
@@ -311,13 +327,44 @@ export default function AddGuestForm({
         <div className="pt-2 flex justify-end">
           <button
             type="submit"
-            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-700 hover:to-amber-600 shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 transform active:scale-95"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-700 hover:to-amber-600 shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 transform active:scale-95 cursor-pointer"
           >
             <Check className="w-4 h-4" />
             <span>Confirm & Register Guest</span>
           </button>
         </div>
       </form>
+
+      {/* Digital Event Pass Modal */}
+      {showPassModal && successInfo && (
+        <div
+          onClick={() => setShowPassModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 p-6"
+          >
+            <button
+              onClick={() => setShowPassModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-all cursor-pointer z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <DigitalEventPass
+              guest={successInfo}
+              occasion={occasion || {}}
+              tableName={
+                tables.find(t => Number(t.id) === Number(successInfo.tableNumber))?.tableName ||
+                (successInfo.tableNumber ? `Table ${successInfo.tableNumber}` : 'Open Seating')
+              }
+              onClose={() => setShowPassModal(false)}
+              showActions={true}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

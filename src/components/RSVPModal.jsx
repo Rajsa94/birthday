@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, Check, Heart, Sparkles, AlertCircle, Phone, User, Users, MessageSquare, Calendar, MapPin, Ticket } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import TableSelector from './TableSelector';
+import DigitalEventPass from './DigitalEventPass';
 import { canTableAccommodate } from '../utils/seating';
 import { validateGuestMobile } from '../utils/validation';
+import { generateUniquePassId } from '../utils/passGenerator';
 
 export default function RSVPModal({
   isOpen,
@@ -66,12 +68,15 @@ export default function RSVPModal({
         errs.totalMembers = 'Maximum group capacity per booking is 8.';
       }
 
-      if (!tableNumber) {
-        errs.tableNumber = 'Please choose a seating table.';
-      } else {
-        const check = canTableAccommodate(tableNumber, totalMembers, tables, guests);
-        if (!check.valid) {
-          errs.tableNumber = check.message;
+      const seatingActive = birthdayDetails?.seatingEnabled !== false;
+      if (seatingActive) {
+        if (!tableNumber) {
+          errs.tableNumber = 'Please choose a seating table.';
+        } else {
+          const check = canTableAccommodate(tableNumber, totalMembers, tables, guests);
+          if (!check.valid) {
+            errs.tableNumber = check.message;
+          }
         }
       }
     }
@@ -85,13 +90,20 @@ export default function RSVPModal({
     if (!validateForm()) return;
 
     const mobileCheck = validateGuestMobile(mobileNumber, guests, null);
+    const passId = generateUniquePassId(
+      { id: Date.now() },
+      birthdayDetails,
+      (guests || []).length + 1
+    );
+
     const newGuest = {
       id: Date.now(),
       guestName: guestName.trim(),
       mobileNumber: mobileCheck.normalized,
       totalMembers: attendanceStatus === 'Attending' ? Number(totalMembers) : 0,
-      tableNumber: attendanceStatus === 'Attending' ? Number(tableNumber) : 0,
+      tableNumber: attendanceStatus === 'Attending' ? Number(tableNumber || 0) : 0,
       attendanceStatus,
+      passId,
       message: message.trim(),
       registeredAt: new Date().toISOString(),
     };
@@ -156,77 +168,42 @@ export default function RSVPModal({
         {/* Modal Body */}
         <div className="p-6">
           {submittedData ? (
-            /* SUCCESS CONFIRMATION TICKET */
-            <div className="space-y-5 text-center py-2 animate-scale-up">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-inner">
-                <Check className="w-8 h-8 stroke-[3]" />
+            attendanceStatus === 'Attending' ? (
+              /* SUCCESS: "Your Event Pass is Ready!" with DigitalEventPass */
+              <div className="space-y-3 py-1 animate-scale-up">
+                <DigitalEventPass
+                  guest={submittedData}
+                  occasion={birthdayDetails}
+                  tableName={selectedTableObj ? selectedTableObj.tableName : (submittedData.tableNumber ? `Table ${submittedData.tableNumber}` : 'Open Seating')}
+                  onClose={handleResetAndClose}
+                  showActions={true}
+                />
               </div>
-
-              <div>
-                <h4 className="text-xl font-bold text-slate-900 font-serif">
-                  {attendanceStatus === 'Attending'
-                    ? `We can't wait to see you, ${submittedData.guestName}!`
-                    : `We'll miss you, ${submittedData.guestName}!`}
-                </h4>
-                <p className="text-sm text-slate-500 mt-1">
-                  {attendanceStatus === 'Attending'
-                    ? 'Your table reservation has been locked in.'
-                    : 'Thank you for sending your heartfelt birthday greetings.'}
-                </p>
-              </div>
-
-              {attendanceStatus === 'Attending' && (
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200/80 rounded-2xl p-4 text-left shadow-sm relative overflow-hidden">
-                  <div className="absolute top-2 right-2 opacity-10">
-                    <Ticket className="w-24 h-24 text-purple-900" />
-                  </div>
-
-                  <div className="flex items-center justify-between pb-3 border-b border-purple-200">
-                    <div>
-                      <span className="text-[11px] font-bold text-purple-600 uppercase tracking-widest">Entry Pass</span>
-                      <h5 className="font-bold text-slate-900">{birthdayDetails.celebrationTitle}</h5>
-                    </div>
-                    <span className="px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold shadow-sm">
-                      Pass #{submittedData.id.toString().slice(-4)}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 pt-3 text-xs">
-                    <div>
-                      <span className="text-slate-500 block">Lead Guest</span>
-                      <span className="font-semibold text-slate-800 text-sm">{submittedData.guestName}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Party Size</span>
-                      <span className="font-semibold text-slate-800 text-sm">{submittedData.totalMembers} Member(s)</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Assigned Table</span>
-                      <span className="font-bold text-purple-700 text-sm">
-                        {selectedTableObj ? selectedTableObj.tableName : `Table ${submittedData.tableNumber}`}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block">Mobile No.</span>
-                      <span className="font-semibold text-slate-800 text-sm">+91 {submittedData.mobileNumber}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-purple-200/60 flex items-center gap-1.5 text-[11px] text-slate-600">
-                    <MapPin className="w-3.5 h-3.5 text-pink-500 shrink-0" />
-                    <span className="truncate">{birthdayDetails.venueName}</span>
-                  </div>
+            ) : (
+              /* DECLINED CONFIRMATION */
+              <div className="space-y-5 text-center py-4 animate-scale-up">
+                <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 text-slate-600 flex items-center justify-center shadow-inner">
+                  <Heart className="w-8 h-8 text-rose-500 fill-rose-500/20" />
                 </div>
-              )}
 
-              <button
-                type="button"
-                onClick={handleResetAndClose}
-                className="w-full py-3 px-6 rounded-xl font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-600/30 transition-all"
-              >
-                Done & Return to Invitation
-              </button>
-            </div>
+                <div>
+                  <h4 className="text-xl font-bold text-slate-900 font-serif">
+                    We'll miss you, {submittedData.guestName}!
+                  </h4>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Thank you for sending your heartfelt blessings and warm wishes.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetAndClose}
+                  className="w-full py-3 px-6 rounded-xl font-bold text-white bg-slate-800 hover:bg-slate-900 shadow-md transition-all cursor-pointer"
+                >
+                  Done & Return to Invitation
+                </button>
+              </div>
+            )
           ) : (
             /* RSVP INPUT FORM */
             <form onSubmit={handleSubmit} className="space-y-4 text-left">

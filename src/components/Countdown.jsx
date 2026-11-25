@@ -9,7 +9,7 @@ export default function Countdown({ targetDate }) {
     const now = new Date().getTime();
     const difference = target - now;
 
-    if (difference <= 0) {
+    if (isNaN(difference) || difference <= 0) {
       return { days: 0, hours: 0, minutes: 0, seconds: 0, isPast: true };
     }
 

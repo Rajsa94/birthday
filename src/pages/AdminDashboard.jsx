@@ -2,11 +2,13 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Settings,
-  UserPlus,
+  CalendarDays,
+  PlusCircle,
+  Palette,
   Users,
   Armchair,
   Image as ImageIcon,
+  BarChart3,
   FileSpreadsheet,
   FileJson,
   Upload,
@@ -18,39 +20,57 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  Settings,
   PartyPopper,
+  Calendar,
+  Check,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import DashboardCard from '../components/DashboardCard';
 import GuestTable from '../components/GuestTable';
 import SeatingCards from '../components/SeatingCards';
 import GuestModal from '../components/GuestModal';
-import BirthdaySummaryCard from '../components/BirthdaySummaryCard';
-import BirthdaySettings from '../components/BirthdaySettings';
+import OccasionContextBar from '../components/OccasionContextBar';
+import OccasionManager from '../components/OccasionManager';
+import OccasionSummaryTable from '../components/OccasionSummaryTable';
+import ThemeDesigner from '../components/ThemeDesigner';
+import DynamicOccasionForm from '../components/DynamicOccasionForm';
 import AddGuestForm from '../components/AddGuestForm';
 import ImageGalleryManager from '../components/ImageGalleryManager';
-import { exportToExcel } from '../utils/excelExport';
+import BirthdaySummaryCard from '../components/BirthdaySummaryCard';
+import { exportToExcel, exportMasterOccasionsExcel } from '../utils/excelExport';
 import { downloadJSON, validateGuestImport } from '../utils/jsonExport';
 import { setAdminAuth } from '../utils/storage';
 
 export default function AdminDashboard({
-  birthdayDetails,
-  tables,
-  guests,
+  occasions = [],
+  activeOccasionId,
+  allGuests = [],
+  currentOccasionGuests = [],
+  currentOccasionTables = [],
+  onSelectActiveOccasion,
+  onCreateOccasion,
+  onUpdateOccasion,
+  onDeleteOccasion,
+  onDuplicateOccasion,
+  onToggleOccasionActive,
   onSaveGuest,
   onDeleteGuest,
   onAddTable,
   onUpdateTableCapacity,
   onImportGuests,
   onResetDefaults,
-  onSaveBirthdayDetails,
 }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   // Active navigation tab
-  // 'overview' | 'birthday-settings' | 'add-guest' | 'guests' | 'seating' | 'gallery' | 'data'
+  // 'overview' | 'occasions' | 'create-occasion' | 'theme-designer' | 'add-guest' | 'guests' | 'seating' | 'gallery' | 'reports' | 'data' | 'occasion-settings'
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Occasion being edited in DynamicOccasionForm (defaults to active occasion)
+  const activeOccasion = occasions.find(o => String(o.id) === String(activeOccasionId)) || occasions[0] || {};
+  const [editingOccasion, setEditingOccasion] = useState(activeOccasion);
 
   // Guest edit modal state
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
@@ -71,54 +91,70 @@ export default function AdminDashboard({
     navigate('/admin/login');
   };
 
-  // Metrics calculation
-  const totalRegisteredGuests = guests.length;
-  const attendingGuests = guests.filter(g => g.attendanceStatus === 'Attending');
-  const declinedGuests = guests.filter(g => g.attendanceStatus === 'Declined');
-  const totalMembersAttending = attendingGuests.reduce((sum, g) => sum + (Number(g.totalMembers) || 0), 0);
+  // Global Platform Metrics Calculation
+  const totalOccasions = occasions.length;
+  const activeOccasionsCount = occasions.filter(o => o.isActive).length;
+  const totalRegisteredGuests = allGuests.length;
+  const totalMembersAttending = allGuests
+    .filter(g => g.attendanceStatus === 'Attending')
+    .reduce((sum, g) => sum + (Number(g.totalMembers) || 0), 0);
 
-  const totalTables = tables.length;
-  const totalSeats = tables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
-  const occupiedSeats = tables.reduce((sum, t) => sum + (Number(t.occupiedSeats) || 0), 0);
-  const availableSeats = Math.max(0, totalSeats - occupiedSeats);
-  const occupancyRate = totalSeats > 0 ? Math.round((occupiedSeats / totalSeats) * 100) : 0;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcomingCount = occasions.filter(o => (o.eventDate || '') >= todayStr).length;
+  const completedCount = totalOccasions - upcomingCount;
 
-  // Excel Export
-  const handleExportExcel = () => {
+  // Active Occasion Specific Metrics
+  const occGuests = currentOccasionGuests;
+  const occAttending = occGuests.filter(g => g.attendanceStatus === 'Attending');
+  const occDeclined = occGuests.filter(g => g.attendanceStatus === 'Declined');
+  const occAttendingMembers = occAttending.reduce((sum, g) => sum + (Number(g.totalMembers) || 0), 0);
+
+  const occTables = currentOccasionTables;
+  const occTotalSeats = occTables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+  const occOccupiedSeats = occTables.reduce((sum, t) => sum + (Number(t.occupiedSeats) || 0), 0);
+  const occAvailableSeats = Math.max(0, occTotalSeats - occOccupiedSeats);
+  const occOccupancyRate = occTotalSeats > 0 ? Math.round((occOccupiedSeats / occTotalSeats) * 100) : 0;
+
+  // Excel Exports
+  const handleExportSingleExcel = () => {
     try {
-      exportToExcel(guests, tables, birthdayDetails);
-      showBanner('Excel workbook (.xlsx) successfully downloaded with Guest List and Table Summary sheets!');
-      confetti({
-        particleCount: 50,
-        spread: 45,
-        origin: { y: 0.2 },
-      });
+      exportToExcel(currentOccasionGuests, currentOccasionTables, activeOccasion);
+      showBanner(`Excel report for "${activeOccasion.occasionName}" downloaded!`);
+      confetti({ particleCount: 50, spread: 45, origin: { y: 0.2 } });
     } catch (err) {
       showBanner('Failed to generate Excel file: ' + err.message, 'error');
     }
   };
 
+  const handleExportMasterExcel = () => {
+    try {
+      exportMasterOccasionsExcel(occasions, allGuests);
+      showBanner('Master Excel workbook with all celebrations & guests downloaded!');
+      confetti({ particleCount: 60, spread: 50, origin: { y: 0.2 } });
+    } catch (err) {
+      showBanner('Failed to generate Master Excel: ' + err.message, 'error');
+    }
+  };
+
   // JSON Exports
-  const handleExportGuestJSON = () => {
-    downloadJSON(guests, 'birthday-guests.json');
-    showBanner('All guest records downloaded as birthday-guests.json');
+  const handleExportAllOccasionsJSON = () => {
+    downloadJSON(occasions, 'celebrations-all-occasions.json');
+    showBanner('All occasions exported as celebrations-all-occasions.json');
   };
 
-  const handleExportTableJSON = () => {
-    downloadJSON(tables, 'birthday-tables.json');
-    showBanner('All table seating data downloaded as birthday-tables.json');
+  const handleExportActiveOccasionJSON = () => {
+    downloadJSON(activeOccasion, `${activeOccasion.id}-details.json`);
+    showBanner(`Occasion details downloaded as ${activeOccasion.id}-details.json`);
   };
 
-  const handleExportBirthdayJSON = () => {
-    downloadJSON(birthdayDetails, 'birthday-details.json');
-    showBanner('Birthday event settings exported as birthday-details.json');
+  const handleExportAllGuestsJSON = () => {
+    downloadJSON(allGuests, 'all-occasions-guests.json');
+    showBanner('All guests across all occasions exported as all-occasions-guests.json');
   };
 
   // JSON Import
   const handleTriggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+    if (fileInputRef.current) fileInputRef.current.click();
   };
 
   const handleFileChange = (e) => {
@@ -135,35 +171,41 @@ export default function AdminDashboard({
           return;
         }
 
-        onImportGuests(validation.guests);
-        showBanner(`Successfully imported ${validation.guests.length} guest records! Table seating recalculated.`);
+        // Tag imported guests with active occasion ID if not present
+        const taggedGuests = validation.guests.map(g => ({
+          ...g,
+          occasionId: g.occasionId || activeOccasion.id,
+        }));
+
+        onImportGuests(taggedGuests);
+        showBanner(`Successfully imported ${taggedGuests.length} guests into "${activeOccasion.occasionName}"!`);
       } catch (err) {
-        showBanner('Invalid JSON syntax in file: ' + err.message, 'error');
+        showBanner('Invalid JSON syntax: ' + err.message, 'error');
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // reset file input
+    e.target.value = '';
   };
 
-  const handleOpenEditGuest = (guest) => {
-    setGuestToEdit(guest);
-    setIsGuestModalOpen(true);
+  const handleOpenEditOccasion = (occ) => {
+    setEditingOccasion(occ);
+    onSelectActiveOccasion(occ.id);
+    setActiveTab('occasion-settings');
   };
 
-  const handleResetData = () => {
-    if (window.confirm('Are you sure you want to restore the initial demo data? Any unsaved local edits will be reset.')) {
-      onResetDefaults();
-      showBanner('Application state reset to initial default demo data.');
-    }
+  const handleOpenThemeDesigner = (occ) => {
+    onSelectActiveOccasion(occ.id);
+    setActiveTab('theme-designer');
   };
 
-  // Gallery update handler
-  const handleUpdateGallery = (updatedGallery) => {
-    onSaveBirthdayDetails({
-      ...birthdayDetails,
-      galleryImages: updatedGallery,
-    });
-    showBanner('Photo gallery updated successfully!');
+  const handleManageOccasionGuests = (occId) => {
+    onSelectActiveOccasion(occId);
+    setActiveTab('guests');
+  };
+
+  const handleManageOccasionSeating = (occId) => {
+    onSelectActiveOccasion(occId);
+    setActiveTab('seating');
   };
 
   return (
@@ -178,26 +220,25 @@ export default function AdminDashboard({
         className="hidden"
       />
 
-      {/* Sidebar Navigation */}
+      {/* Modern Sidebar Navigation */}
       <aside className="w-full md:w-64 bg-slate-900 text-slate-200 border-r border-slate-800 flex flex-col shrink-0">
         
         {/* Brand header */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-md">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-500 via-pink-500 to-amber-400 flex items-center justify-center text-white shadow-md">
               <PartyPopper className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-serif font-bold text-base text-white">Event Admin</h2>
-              <span className="text-[11px] text-pink-400 font-medium truncate block max-w-[140px]">
-                {birthdayDetails.personName}'s Bash
-              </span>
+              <h2 className="font-serif font-bold text-base text-white leading-tight">CelebrationOS</h2>
+              <span className="text-[11px] text-pink-400 font-medium">Multi-Occasion Platform</span>
             </div>
           </div>
         </div>
 
-        {/* Navigation Links per user requirement */}
-        <nav className="p-4 space-y-1 flex-1 text-xs sm:text-sm font-semibold">
+        {/* Navigation Items (Sections 11 & 14) */}
+        <nav className="p-3.5 space-y-1 flex-1 text-xs sm:text-sm font-semibold overflow-y-auto">
+          
           {/* 1. Dashboard */}
           <button
             onClick={() => setActiveTab('overview')}
@@ -211,33 +252,51 @@ export default function AdminDashboard({
             <span>Dashboard</span>
           </button>
 
-          {/* 2. Birthday Settings */}
+          {/* 2. All Occasions */}
           <button
-            onClick={() => setActiveTab('birthday-settings')}
-            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-              activeTab === 'birthday-settings'
+            onClick={() => setActiveTab('occasions')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'occasions'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <Settings className="w-4 h-4" />
-            <span>Birthday Settings</span>
+            <div className="flex items-center gap-3">
+              <CalendarDays className="w-4 h-4" />
+              <span>All Occasions</span>
+            </div>
+            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-purple-300">
+              {occasions.length}
+            </span>
           </button>
 
-          {/* 3. Add Guest */}
+          {/* 3. Create Occasion */}
           <button
-            onClick={() => setActiveTab('add-guest')}
+            onClick={() => setActiveTab('create-occasion')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-              activeTab === 'add-guest'
+              activeTab === 'create-occasion'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
             }`}
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Add Guest</span>
+            <PlusCircle className="w-4 h-4 text-pink-400" />
+            <span>Create Occasion</span>
           </button>
 
-          {/* 4. Guest Management */}
+          {/* 4. Theme Designer */}
+          <button
+            onClick={() => setActiveTab('theme-designer')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'theme-designer'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Palette className="w-4 h-4 text-amber-400" />
+            <span>Theme Designer</span>
+          </button>
+
+          {/* 5. Guest Management */}
           <button
             onClick={() => setActiveTab('guests')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
@@ -250,12 +309,12 @@ export default function AdminDashboard({
               <Users className="w-4 h-4" />
               <span>Guest Management</span>
             </div>
-            <span className="text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
-              {guests.length}
+            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
+              {currentOccasionGuests.length}
             </span>
           </button>
 
-          {/* 5. Seating Management */}
+          {/* 6. Seating Management */}
           <button
             onClick={() => setActiveTab('seating')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
@@ -268,12 +327,12 @@ export default function AdminDashboard({
               <Armchair className="w-4 h-4" />
               <span>Seating Management</span>
             </div>
-            <span className="text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
-              {tables.length}
+            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
+              {currentOccasionTables.length}
             </span>
           </button>
 
-          {/* 6. Image Gallery */}
+          {/* 7. Media Gallery */}
           <button
             onClick={() => setActiveTab('gallery')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
@@ -284,14 +343,27 @@ export default function AdminDashboard({
           >
             <div className="flex items-center gap-3">
               <ImageIcon className="w-4 h-4" />
-              <span>Image Gallery</span>
+              <span>Media Gallery</span>
             </div>
-            <span className="text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
-              {(birthdayDetails.galleryImages || []).length}
+            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
+              {(activeOccasion.galleryImages || []).length}
             </span>
           </button>
 
-          {/* 7. JSON Backup & Restore */}
+          {/* 8. Reports & Analytics */}
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'reports'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <span>Reports & Analytics</span>
+          </button>
+
+          {/* 9. JSON Backup */}
           <button
             onClick={() => setActiveTab('data')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
@@ -301,79 +373,71 @@ export default function AdminDashboard({
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>JSON Backup & Restore</span>
+            <span>JSON Backup</span>
+          </button>
+
+          {/* 10. Occasion Settings */}
+          <button
+            onClick={() => {
+              setEditingOccasion(activeOccasion);
+              setActiveTab('occasion-settings');
+            }}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'occasion-settings'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Occasion Settings</span>
           </button>
         </nav>
 
-        {/* Footer actions */}
+        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-800 space-y-2">
           <button
-            onClick={handleExportExcel}
+            onClick={handleExportMasterExcel}
             className="w-full py-2.5 px-3 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+            title="Download Excel report across all occasions"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Download Excel (.xlsx)</span>
+            <span>Master Excel (.xlsx)</span>
           </button>
 
-          <Link
-            to="/"
+          <a
+            href={`/invite/${activeOccasion.occasionType}/${activeOccasion.id}`}
             target="_blank"
+            rel="noopener noreferrer"
             className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
           >
             <Eye className="w-3.5 h-3.5" />
-            <span>Preview Public Page</span>
-          </Link>
+            <span>Live Invitation</span>
+          </a>
 
-          {/* 8. Logout */}
+          {/* 11. Logout */}
           <button
             onClick={handleLogout}
             className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 flex items-center justify-center gap-2 transition-all"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content Pane */}
       <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
         
-        {/* Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-serif font-black text-slate-900 tracking-tight">
-              {activeTab === 'overview' && 'Event & Guest Dashboard'}
-              {activeTab === 'birthday-settings' && 'Birthday Settings & Customization'}
-              {activeTab === 'add-guest' && 'Add Guest (Manual Registration)'}
-              {activeTab === 'guests' && 'Guest Roster & Registrations'}
-              {activeTab === 'seating' && 'Banquet Seating Arrangement'}
-              {activeTab === 'gallery' && 'Celebration Image Gallery'}
-              {activeTab === 'data' && 'JSON Backup, Sync & Excel Export'}
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Celebrating {birthdayDetails.personName}'s Bash • {birthdayDetails.displayDate || birthdayDetails.birthdayDate}
-            </p>
-          </div>
-
-          {/* Action Toolbar */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={() => setActiveTab('add-guest')}
-              className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-sm flex items-center gap-1.5 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Guest</span>
-            </button>
-
-            <button
-              onClick={handleExportExcel}
-              className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 flex items-center gap-1.5 transition-all shadow-xs"
-            >
-              <Download className="w-4 h-4 text-emerald-700" />
-              <span>Excel Export</span>
-            </button>
-          </div>
-        </div>
+        {/* Global Context Bar: Switch active celebration with 1 click */}
+        <OccasionContextBar
+          occasions={occasions}
+          activeOccasionId={activeOccasionId}
+          onSelectOccasion={(id) => {
+            onSelectActiveOccasion(id);
+            showBanner(`Active occasion context set to "${occasions.find(o => o.id === id)?.occasionName}"`);
+          }}
+          onOpenCreateOccasion={() => setActiveTab('create-occasion')}
+        />
 
         {/* Status / Alert Banner */}
         {bannerMessage && (
@@ -401,407 +465,450 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 1: DASHBOARD OVERVIEW */}
+        {/* TAB 1: OVERVIEW DASHBOARD */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            
-            {/* Birthday Summary Card Requirement */}
-            <BirthdaySummaryCard
-              birthdayDetails={birthdayDetails}
-              totalRegisteredGuests={totalRegisteredGuests}
-              totalMembersAttending={totalMembersAttending}
-              onEditClick={() => setActiveTab('birthday-settings')}
-            />
-
-            {/* 7 Summary Cards as requested by user */}
+          <div className="space-y-6 text-left">
+            {/* Global Metrics Cards across all celebrations */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <DashboardCard
+                title="Total Occasions"
+                value={totalOccasions}
+                subtitle={`${activeOccasionsCount} Active Celebrations`}
+                icon={CalendarDays}
+                colorScheme="purple"
+              />
+
               <DashboardCard
                 title="Total Registered Guests"
                 value={totalRegisteredGuests}
-                subtitle={`${attendingGuests.length} Attending • ${declinedGuests.length} Declined`}
+                subtitle="All guest registrations across platform"
                 icon={Users}
-                colorScheme="purple"
+                colorScheme="blue"
               />
 
               <DashboardCard
                 title="Members Attending"
                 value={totalMembersAttending}
-                subtitle="Total heads expected at venue"
+                subtitle="Aggregate confirmed attendees"
                 icon={PartyPopper}
                 colorScheme="pink"
-                badge={`${attendingGuests.length} groups`}
               />
 
               <DashboardCard
-                title="Total Tables"
-                value={totalTables}
-                subtitle="Configured banquet seating tables"
-                icon={Armchair}
-                colorScheme="blue"
-              />
-
-              <DashboardCard
-                title="Total Seats"
-                value={totalSeats}
-                subtitle="Aggregate capacity across tables"
-                icon={Armchair}
+                title="Upcoming Celebrations"
+                value={upcomingCount}
+                subtitle={`${completedCount} past celebration events`}
+                icon={Sparkles}
                 colorScheme="amber"
               />
-
-              <DashboardCard
-                title="Occupied Seats"
-                value={occupiedSeats}
-                subtitle={`${occupancyRate}% of total banquet capacity`}
-                icon={CheckCircle2}
-                colorScheme="emerald"
-                badge={`${occupancyRate}%`}
-              />
-
-              <DashboardCard
-                title="Available Seats"
-                value={availableSeats}
-                subtitle={`${availableSeats > 0 ? 'Seats ready for RSVP' : 'Venue is at maximum capacity'}`}
-                icon={Sparkles}
-                colorScheme={availableSeats > 0 ? 'emerald' : 'rose'}
-              />
-
-              <DashboardCard
-                title="Guests Not Attending"
-                value={declinedGuests.length}
-                subtitle="Politely declined with best wishes"
-                icon={AlertCircle}
-                colorScheme="rose"
-              />
-
-              <div className="rounded-2xl p-5 border border-purple-200 bg-gradient-to-br from-purple-100/70 to-pink-100/50 flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-purple-700">Quick Excel Report</span>
-                  <h4 className="text-sm font-bold text-slate-800 mt-1">Export Complete Roster</h4>
-                  <p className="text-xs text-slate-500 mt-1">Multi-sheet workbook with guests & tables.</p>
-                </div>
-                <button
-                  onClick={handleExportExcel}
-                  className="mt-3 w-full py-2 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-1.5"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Download .xlsx</span>
-                </button>
-              </div>
             </div>
 
-            {/* Visual Analytics & Capacity Distribution Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-left">
-              
-              {/* Seating distribution card */}
-              <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-slate-900">
-                      Table Occupancy Breakdown
-                    </h3>
-                    <p className="text-xs text-slate-500">Live seat utilization across banquet tables</p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('seating')}
-                    className="text-xs font-bold text-purple-700 hover:underline"
-                  >
-                    Manage Seating →
-                  </button>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  {tables.map(t => {
-                    const pct = Math.min(100, Math.round((t.occupiedSeats / t.capacity) * 100));
-                    const isFull = t.availableSeats <= 0;
-                    return (
-                      <div key={t.id} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs font-medium">
-                          <span className="font-bold text-slate-800">{t.tableName || `Table ${t.id}`}</span>
-                          <span className="text-slate-500">
-                            {t.occupiedSeats} / {t.capacity} Seats ({pct}%)
-                            {isFull && <strong className="text-rose-600 ml-1.5 font-bold">[FULL]</strong>}
-                          </span>
-                        </div>
-                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              isFull ? 'bg-rose-500' : pct > 70 ? 'bg-amber-500' : 'bg-purple-600'
-                            }`}
-                            style={{ width: `${pct}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Attendance Breakdown Card */}
-              <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
-                <div>
-                  <h3 className="font-serif font-bold text-lg text-slate-900">
-                    Attendance Status
-                  </h3>
-                  <p className="text-xs text-slate-500">Breakdown of responses received</p>
-
-                  <div className="my-6 space-y-3">
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                        <span className="text-xs font-bold text-emerald-900">Attending</span>
-                      </div>
-                      <span className="text-sm font-extrabold text-emerald-950 font-serif">
-                        {attendingGuests.length} RSVPs ({totalMembersAttending} Guests)
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-rose-500"></div>
-                        <span className="text-xs font-bold text-rose-900">Declined</span>
-                      </div>
-                      <span className="text-sm font-extrabold text-rose-950 font-serif">
-                        {declinedGuests.length} Guests
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 text-xs text-slate-500">
-                  Total registration responses: <strong>{totalRegisteredGuests}</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Guests preview */}
-            <div className="space-y-3 text-left">
+            {/* Active Occasion Focused Overview */}
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold font-serif text-slate-900">
-                  Guest Registry Overview
-                </h3>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-700">
+                  Focused Celebration Overview
+                </span>
                 <button
-                  onClick={() => setActiveTab('guests')}
+                  onClick={() => setActiveTab('occasions')}
                   className="text-xs font-bold text-purple-700 hover:underline"
                 >
-                  View All Guests ({guests.length}) →
+                  Manage All Occasions ({occasions.length}) →
                 </button>
               </div>
 
-              <GuestTable
-                guests={guests}
-                tables={tables}
-                onEditGuest={handleOpenEditGuest}
-                onDeleteGuest={onDeleteGuest}
+              {/* Birthday / Occasion Summary Card */}
+              <BirthdaySummaryCard
+                birthdayDetails={activeOccasion}
+                totalRegisteredGuests={occGuests.length}
+                totalMembersAttending={occAttendingMembers}
+                onEditClick={() => {
+                  setEditingOccasion(activeOccasion);
+                  setActiveTab('occasion-settings');
+                }}
               />
             </div>
+
+            {/* Occasion Summary Table (Section 8) */}
+            <OccasionSummaryTable
+              occasions={occasions}
+              allGuests={allGuests}
+              activeOccasionId={activeOccasionId}
+              onSelectOccasion={(id) => onSelectActiveOccasion(id)}
+              onEditOccasion={handleOpenEditOccasion}
+              onManageGuests={handleManageOccasionGuests}
+              onManageSeating={handleManageOccasionSeating}
+            />
           </div>
         )}
 
-        {/* TAB 2: BIRTHDAY SETTINGS */}
-        {activeTab === 'birthday-settings' && (
-          <BirthdaySettings
-            birthdayDetails={birthdayDetails}
-            onSaveBirthdayDetails={(updated) => {
-              onSaveBirthdayDetails(updated);
-              showBanner('Birthday details updated successfully!');
+        {/* TAB 2: ALL OCCASIONS */}
+        {activeTab === 'occasions' && (
+          <OccasionManager
+            occasions={occasions}
+            activeOccasionId={activeOccasionId}
+            allGuests={allGuests}
+            onSelectActiveOccasion={(id) => {
+              onSelectActiveOccasion(id);
+              showBanner('Active occasion context updated!');
+            }}
+            onCreateOccasion={(newOcc) => {
+              const created = onCreateOccasion(newOcc);
+              showBanner(`Occasion "${created.occasionName}" created successfully!`);
+              return created;
+            }}
+            onEditOccasion={handleOpenEditOccasion}
+            onOpenThemeDesigner={handleOpenThemeDesigner}
+            onManageGuests={handleManageOccasionGuests}
+            onManageSeating={handleManageOccasionSeating}
+            onDuplicateOccasion={(id) => {
+              const dup = onDuplicateOccasion(id);
+              showBanner(`Duplicated occasion as "${dup.occasionName}"!`);
+            }}
+            onToggleActive={(id) => {
+              onToggleOccasionActive(id);
+              showBanner('Occasion status updated.');
+            }}
+            onDeleteOccasion={(id) => {
+              onDeleteOccasion(id);
+              showBanner('Occasion and its guest registry deleted.');
             }}
           />
         )}
 
-        {/* TAB 3: ADD GUEST (MANUAL REGISTRATION) */}
+        {/* TAB 3: CREATE OCCASION */}
+        {activeTab === 'create-occasion' && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm text-left max-w-4xl mx-auto space-y-5">
+            <div>
+              <h2 className="text-2xl font-serif font-bold text-slate-900">
+                Launch a New Occasion Celebration
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Select from 18 celebration categories with dynamic themes and custom fields.
+              </p>
+            </div>
+
+            <DynamicOccasionForm
+              occasion={{
+                occasionType: 'wedding',
+                occasionName: 'New Royal Celebration',
+                title: 'Grand Celebration 2026',
+                eventDate: new Date(Date.now() + 20 * 86400000).toISOString().split('T')[0],
+                partyStartTime: '19:00',
+                partyEndTime: '23:00',
+                venueName: 'The Royal Ballroom',
+                venueAddress: '108 Grand Avenue',
+                invitationMessage: 'You are cordially invited to celebrate with us!',
+                hostContact: '9876543210',
+                seatingEnabled: true,
+              }}
+              onSaveOccasion={(newOccData) => {
+                const created = onCreateOccasion(newOccData);
+                showBanner(`Celebration "${created.occasionName}" launched!`);
+                setActiveTab('occasions');
+              }}
+              onCancel={() => setActiveTab('occasions')}
+            />
+          </div>
+        )}
+
+        {/* TAB 4: THEME DESIGNER */}
+        {activeTab === 'theme-designer' && (
+          <ThemeDesigner
+            currentOccasion={activeOccasion}
+            onSaveThemeSettings={(themeData) => {
+              onUpdateOccasion(activeOccasion.id, themeData);
+              showBanner('Custom theme saved & applied to public invitation!');
+            }}
+          />
+        )}
+
+        {/* TAB 5: GUEST MANAGEMENT */}
+        {activeTab === 'guests' && (
+          <div className="space-y-4 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200">
+              <div>
+                <h3 className="text-lg font-bold font-serif text-slate-900">
+                  Guest Registry: {activeOccasion.occasionName}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Separate guest list for this celebration with unique 10-digit mobile number deduplication.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('add-guest')}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Register Guest</span>
+                </button>
+              </div>
+            </div>
+
+            <GuestTable
+              guests={currentOccasionGuests}
+              tables={currentOccasionTables}
+              onEditGuest={(guest) => {
+                setGuestToEdit(guest);
+                setIsGuestModalOpen(true);
+              }}
+              onDeleteGuest={onDeleteGuest}
+              occasion={activeOccasion}
+            />
+          </div>
+        )}
+
+        {/* TAB 6: SEATING MANAGEMENT */}
+        {activeTab === 'seating' && (
+          <div className="space-y-4 text-left">
+            {!activeOccasion.seatingEnabled && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs font-semibold flex items-center justify-between">
+                <span>Note: Banquet table seating is currently disabled in Occasion Settings for this celebration.</span>
+                <button
+                  onClick={() => onUpdateOccasion(activeOccasion.id, { seatingEnabled: true })}
+                  className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs"
+                >
+                  Enable Seating
+                </button>
+              </div>
+            )}
+
+            <SeatingCards
+              tables={currentOccasionTables}
+              guests={currentOccasionGuests}
+              onUpdateTableCapacity={onUpdateTableCapacity}
+              onAddTable={onAddTable}
+            />
+          </div>
+        )}
+
+        {/* TAB 7: ADD GUEST */}
         {activeTab === 'add-guest' && (
           <AddGuestForm
-            tables={tables}
-            guests={guests}
-            onSaveGuest={(guest) => {
-              onSaveGuest(guest);
-              showBanner(`Guest "${guest.guestName}" registered successfully!`);
+            tables={currentOccasionTables}
+            guests={currentOccasionGuests}
+            occasion={activeOccasion}
+            onSaveGuest={(g) => {
+              onSaveGuest({ ...g, occasionId: activeOccasion.id });
+              showBanner(`Guest "${g.guestName}" registered for "${activeOccasion.occasionName}"!`);
             }}
             onViewGuestList={() => setActiveTab('guests')}
           />
         )}
 
-        {/* TAB 4: GUEST MANAGEMENT */}
-        {activeTab === 'guests' && (
-          <div className="space-y-4">
-            <GuestTable
-              guests={guests}
-              tables={tables}
-              onEditGuest={handleOpenEditGuest}
-              onDeleteGuest={onDeleteGuest}
-            />
+        {/* TAB 8: MEDIA GALLERY */}
+        {activeTab === 'gallery' && (
+          <ImageGalleryManager
+            galleryImages={activeOccasion.galleryImages || []}
+            onUpdateGallery={(updatedGallery) => {
+              onUpdateOccasion(activeOccasion.id, { galleryImages: updatedGallery });
+              showBanner('Occasion media gallery updated!');
+            }}
+          />
+        )}
+
+        {/* TAB 9: REPORTS & ANALYTICS */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6 text-left">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-serif font-bold text-xl text-slate-900">
+                    Platform Analytics & Multi-Occasion Reports
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Consolidated attendance statistics, guest capacity breakdowns, and multi-sheet Excel generation.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleExportSingleExcel}
+                    className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+                    <span>Occasion Excel</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportMasterExcel}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Master Excel</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Attendance Breakdown Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <div className="p-5 rounded-2xl bg-purple-50 border border-purple-100">
+                  <span className="text-xs font-bold text-purple-700 uppercase">Total Guest RSVPs</span>
+                  <div className="text-3xl font-extrabold text-purple-950 font-serif mt-1">
+                    {totalRegisteredGuests}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">Across {totalOccasions} active and past events</p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-100">
+                  <span className="text-xs font-bold text-emerald-700 uppercase">Confirmed Attending</span>
+                  <div className="text-3xl font-extrabold text-emerald-950 font-serif mt-1">
+                    {totalMembersAttending}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">Attending members to seat and cater</p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-amber-50 border border-amber-100">
+                  <span className="text-xs font-bold text-amber-700 uppercase">Active Occasions</span>
+                  <div className="text-3xl font-extrabold text-amber-950 font-serif mt-1">
+                    {activeOccasionsCount}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">Currently accepting guest RSVPs</p>
+                </div>
+              </div>
+
+              {/* Occasion Table Breakdown in Reports */}
+              <OccasionSummaryTable
+                occasions={occasions}
+                allGuests={allGuests}
+                activeOccasionId={activeOccasionId}
+                onSelectOccasion={(id) => onSelectActiveOccasion(id)}
+                onEditOccasion={handleOpenEditOccasion}
+                onManageGuests={handleManageOccasionGuests}
+                onManageSeating={handleManageOccasionSeating}
+              />
+            </div>
           </div>
         )}
 
-        {/* TAB 5: SEATING MANAGEMENT */}
-        {activeTab === 'seating' && (
-          <SeatingCards
-            tables={tables}
-            guests={guests}
-            onUpdateTableCapacity={onUpdateTableCapacity}
-            onAddTable={onAddTable}
-          />
-        )}
-
-        {/* TAB 6: IMAGE GALLERY */}
-        {activeTab === 'gallery' && (
-          <ImageGalleryManager
-            galleryImages={birthdayDetails.galleryImages || []}
-            onUpdateGallery={handleUpdateGallery}
-          />
-        )}
-
-        {/* TAB 7: JSON BACKUP & RESTORE */}
+        {/* TAB 10: JSON BACKUP & RESTORE */}
         {activeTab === 'data' && (
           <div className="space-y-6 text-left">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-5">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
               <div>
-                <h3 className="text-xl font-serif font-bold text-slate-900">
-                  JSON Backup, Sync & Data Portability
+                <h3 className="font-serif font-bold text-xl text-slate-900">
+                  JSON Data Portability, Master Backup & Sync
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Export your live application state to Excel (.xlsx) and JSON files, or import an existing guest JSON dataset.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Export complete platform databases, individual celebration configs, or restore from a backup JSON.
                 </p>
               </div>
 
-              {/* Technical Notice per requirements */}
-              <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 text-xs text-purple-900 space-y-1">
-                <span className="font-bold uppercase tracking-wider text-[11px] text-purple-700 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  Frontend Persistence Architecture
-                </span>
-                <p className="text-slate-600">
-                  All guest reservations, seat bookings, custom images, and birthday settings are persisted in your browser's <strong>LocalStorage & IndexedDB</strong> across page reloads.
-                </p>
-              </div>
-
-              {/* Export Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-                {/* Excel Export */}
+              {/* Export Buttons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <FileSpreadsheet className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Download Excel (.xlsx)</h4>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Includes 2 sheets: "Guest List" & "Table Summary".
-                    </p>
+                    <FileSpreadsheet className="w-8 h-8 text-emerald-600 mb-2" />
+                    <h4 className="font-bold text-sm text-slate-900">Master Excel (.xlsx)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Multi-sheet report of all occasions & guests.</p>
                   </div>
                   <button
-                    onClick={handleExportExcel}
-                    className="mt-4 w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                    onClick={handleExportMasterExcel}
+                    className="mt-4 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download Excel</span>
+                    Download Master Excel
                   </button>
                 </div>
 
-                {/* JSON Guest Export */}
                 <div className="p-5 rounded-2xl border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <FileJson className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Guests (JSON)</h4>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      All {guests.length} guest records.
-                    </p>
+                    <FileJson className="w-8 h-8 text-purple-600 mb-2" />
+                    <h4 className="font-bold text-sm text-slate-900">All Occasions (JSON)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Exports all {occasions.length} occasion definitions.</p>
                   </div>
                   <button
-                    onClick={handleExportGuestJSON}
-                    className="mt-4 w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                    onClick={handleExportAllOccasionsJSON}
+                    className="mt-4 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export guests.json</span>
+                    Export Occasions JSON
                   </button>
                 </div>
 
-                {/* JSON Table Export */}
                 <div className="p-5 rounded-2xl border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <Armchair className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Tables (JSON)</h4>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      All {tables.length} table records.
-                    </p>
+                    <Users className="w-8 h-8 text-blue-600 mb-2" />
+                    <h4 className="font-bold text-sm text-slate-900">All Guests (JSON)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Exports all {allGuests.length} guest records.</p>
                   </div>
                   <button
-                    onClick={handleExportTableJSON}
-                    className="mt-4 w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                    onClick={handleExportAllGuestsJSON}
+                    className="mt-4 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export tables.json</span>
+                    Export Guests JSON
                   </button>
                 </div>
 
-                {/* JSON Birthday Details Export */}
                 <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Settings (JSON)</h4>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Venue, times, & themes.
-                    </p>
+                    <Sparkles className="w-8 h-8 text-amber-500 mb-2" />
+                    <h4 className="font-bold text-sm text-slate-900">Active Occasion JSON</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">Backup config for "{activeOccasion.occasionName}".</p>
                   </div>
                   <button
-                    onClick={handleExportBirthdayJSON}
-                    className="mt-4 w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                    onClick={handleExportActiveOccasionJSON}
+                    className="mt-4 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Export settings.json</span>
+                    Export Active Occasion
                   </button>
                 </div>
               </div>
 
-              {/* Import & Reset Section */}
+              {/* Import & Reset */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                {/* Import JSON */}
                 <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center mb-3">
-                      <Upload className="w-5 h-5" />
-                    </div>
-                    <h4 className="font-bold text-slate-900 text-sm">Import Guest JSON Data</h4>
+                    <Upload className="w-8 h-8 text-slate-700 mb-2" />
+                    <h4 className="font-bold text-sm text-slate-900">Import Guest Dataset (JSON)</h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Upload an existing JSON array of guests. Table occupancies will be automatically recalculated.
+                      Upload a JSON array of guests to populate the active celebration.
                     </p>
                   </div>
                   <button
                     onClick={handleTriggerFileInput}
-                    className="mt-4 w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    className="mt-4 py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Choose JSON File to Import</span>
+                    Select JSON File
                   </button>
                 </div>
 
-                {/* Reset to Default */}
-                <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/40 flex flex-col justify-between">
+                <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center mb-3">
-                      <RotateCcw className="w-5 h-5" />
-                    </div>
-                    <h4 className="font-bold text-rose-950 text-sm">Reset to Default Demo State</h4>
+                    <RotateCcw className="w-8 h-8 text-rose-600 mb-2" />
+                    <h4 className="font-bold text-sm text-rose-950">Reset Platform to Seed Defaults</h4>
                     <p className="text-xs text-slate-500 mt-1">
-                      Clears local browser modifications and restores the original guest and table seed records.
+                      Clears local modifications and restores all seed occasions and demo guests.
                     </p>
                   </div>
                   <button
-                    onClick={handleResetData}
-                    className="mt-4 w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    onClick={() => {
+                      if (window.confirm('Reset platform to default seed occasions and guests?')) {
+                        onResetDefaults();
+                        showBanner('Platform restored to default seed celebrations.');
+                      }
+                    }}
+                    className="mt-4 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset All Data</span>
+                    Reset All Data
                   </button>
                 </div>
               </div>
             </div>
           </div>
+        )}
+
+        {/* TAB 11: OCCASION SETTINGS (DYNAMIC FORM) */}
+        {activeTab === 'occasion-settings' && (
+          <DynamicOccasionForm
+            occasion={editingOccasion}
+            onSaveOccasion={(updated) => {
+              onUpdateOccasion(updated.id, updated);
+              setEditingOccasion(updated);
+              showBanner(`Occasion "${updated.occasionName}" updated successfully!`);
+            }}
+            onCancel={() => setActiveTab('overview')}
+          />
         )}
       </main>
 
@@ -813,8 +920,8 @@ export default function AdminDashboard({
           setGuestToEdit(null);
         }}
         guestToEdit={guestToEdit}
-        tables={tables}
-        guests={guests}
+        tables={currentOccasionTables}
+        guests={currentOccasionGuests}
         onSaveGuest={onSaveGuest}
       />
     </div>

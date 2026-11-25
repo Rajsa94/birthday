@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Filter, ArrowUpDown, Edit3, Trash2, Eye, UserX, UserCheck, Calendar, Phone, Users, MessageSquare, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Edit3, Trash2, Eye, UserX, UserCheck, Calendar, Phone, Users, MessageSquare, ChevronLeft, ChevronRight, X, Ticket } from 'lucide-react';
+import DigitalEventPass from './DigitalEventPass';
 
 export default function GuestTable({
   guests,
   tables,
   onEditGuest,
   onDeleteGuest,
+  occasion,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -17,6 +19,7 @@ export default function GuestTable({
 
   // View details modal state
   const [selectedGuestForView, setSelectedGuestForView] = useState(null);
+  const [selectedGuestForPass, setSelectedGuestForPass] = useState(null);
 
   // Filter & Search logic
   const filteredGuests = useMemo(() => {
@@ -322,6 +325,17 @@ export default function GuestTable({
                           <Eye className="w-4 h-4" />
                         </button>
 
+                        {/* View Digital Pass */}
+                        {isAttending && (
+                          <button
+                            onClick={() => setSelectedGuestForPass(guest)}
+                            title="View & Download Event Pass"
+                            className="p-1.5 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer"
+                          >
+                            <Ticket className="w-4 h-4" />
+                          </button>
+                        )}
+
                         {/* Edit */}
                         <button
                           onClick={() => onEditGuest(guest)}
@@ -464,17 +478,62 @@ export default function GuestTable({
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
+              {selectedGuestForView.attendanceStatus === 'Attending' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const g = selectedGuestForView;
+                    setSelectedGuestForView(null);
+                    setSelectedGuestForPass(g);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Ticket className="w-3.5 h-3.5" />
+                  <span>View Pass</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   const g = selectedGuestForView;
                   setSelectedGuestForView(null);
                   onEditGuest(g);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-sm"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-sm cursor-pointer"
               >
                 Edit Details
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Digital Event Pass Modal */}
+      {selectedGuestForPass && (
+        <div
+          onClick={() => setSelectedGuestForPass(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto animate-fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden my-6 p-6"
+          >
+            <button
+              onClick={() => setSelectedGuestForPass(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 transition-all cursor-pointer z-10"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <DigitalEventPass
+              guest={selectedGuestForPass}
+              occasion={occasion || {}}
+              tableName={
+                tables.find(t => Number(t.id) === Number(selectedGuestForPass.tableNumber))?.tableName ||
+                (selectedGuestForPass.tableNumber ? `Table ${selectedGuestForPass.tableNumber}` : 'Open Seating')
+              }
+              onClose={() => setSelectedGuestForPass(null)}
+              showActions={true}
+            />
           </div>
         </div>
       )}
