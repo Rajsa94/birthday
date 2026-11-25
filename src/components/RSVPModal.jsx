@@ -3,6 +3,7 @@ import { X, Check, Heart, Sparkles, AlertCircle, Phone, User, Users, MessageSqua
 import confetti from 'canvas-confetti';
 import TableSelector from './TableSelector';
 import { canTableAccommodate } from '../utils/seating';
+import { validateGuestMobile } from '../utils/validation';
 
 export default function RSVPModal({
   isOpen,
@@ -52,12 +53,10 @@ export default function RSVPModal({
       errs.guestName = 'Name must be at least 2 characters.';
     }
 
-    // Clean mobile: digits only
-    const cleanPhone = mobileNumber.replace(/\D/g, '');
-    if (!cleanPhone) {
-      errs.mobileNumber = 'Mobile number is required.';
-    } else if (cleanPhone.length < 10 || cleanPhone.length > 13) {
-      errs.mobileNumber = 'Please enter a valid 10-digit mobile number.';
+    // Strict Unique Mobile Validation (10-digit Indian mobile)
+    const mobileCheck = validateGuestMobile(mobileNumber, guests, null);
+    if (!mobileCheck.valid) {
+      errs.mobileNumber = mobileCheck.error;
     }
 
     if (attendanceStatus === 'Attending') {
@@ -85,10 +84,11 @@ export default function RSVPModal({
     e.preventDefault();
     if (!validateForm()) return;
 
+    const mobileCheck = validateGuestMobile(mobileNumber, guests, null);
     const newGuest = {
       id: Date.now(),
       guestName: guestName.trim(),
-      mobileNumber: mobileNumber.replace(/\D/g, ''),
+      mobileNumber: mobileCheck.normalized,
       totalMembers: attendanceStatus === 'Attending' ? Number(totalMembers) : 0,
       tableNumber: attendanceStatus === 'Attending' ? Number(tableNumber) : 0,
       attendanceStatus,

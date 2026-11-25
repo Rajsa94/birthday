@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Cake, ShieldCheck, Sparkles, Heart } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function Navbar() {
+export default function Navbar({ birthdayDetails = {} }) {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
 
@@ -16,6 +16,8 @@ export default function Navbar() {
     });
   };
 
+  const displayName = birthdayDetails?.personName ? `${birthdayDetails.personName}'s Bash` : "Aria's 25th";
+
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-purple-100 shadow-sm">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -27,7 +29,7 @@ export default function Navbar() {
           </div>
           <div>
             <span className="font-serif font-bold text-lg sm:text-xl text-slate-900 group-hover:text-purple-700 transition-colors">
-              Aria's 25th
+              {displayName}
             </span>
             <span className="hidden sm:inline-block text-[11px] font-semibold text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full ml-2 border border-pink-200">
               Celebration & RSVP

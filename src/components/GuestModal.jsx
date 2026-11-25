@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle, User, Phone, Users, MessageSquare } from 'lucide-react';
 import { canTableAccommodate } from '../utils/seating';
+import { validateGuestMobile } from '../utils/validation';
 
 export default function GuestModal({
   isOpen,
@@ -47,11 +48,10 @@ export default function GuestModal({
       errs.guestName = 'Guest name is required.';
     }
 
-    const cleanPhone = mobileNumber.replace(/\D/g, '');
-    if (!cleanPhone) {
-      errs.mobileNumber = 'Mobile number is required.';
-    } else if (cleanPhone.length < 10 || cleanPhone.length > 13) {
-      errs.mobileNumber = 'Valid 10-digit mobile number required.';
+    // Strict Unique Mobile Validation
+    const mobileCheck = validateGuestMobile(mobileNumber, guests, guestToEdit ? guestToEdit.id : null);
+    if (!mobileCheck.valid) {
+      errs.mobileNumber = mobileCheck.error;
     }
 
     if (attendanceStatus === 'Attending') {
@@ -82,10 +82,11 @@ export default function GuestModal({
     e.preventDefault();
     if (!validate()) return;
 
+    const mobileCheck = validateGuestMobile(mobileNumber, guests, guestToEdit ? guestToEdit.id : null);
     const saved = {
       id: guestToEdit ? guestToEdit.id : Date.now(),
       guestName: guestName.trim(),
-      mobileNumber: mobileNumber.replace(/\D/g, ''),
+      mobileNumber: mobileCheck.normalized,
       totalMembers: attendanceStatus === 'Attending' ? Number(totalMembers) : 0,
       tableNumber: attendanceStatus === 'Attending' ? Number(tableNumber) : 0,
       attendanceStatus,

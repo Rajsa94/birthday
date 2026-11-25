@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -7,6 +7,7 @@ import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import {
   getStoredBirthday,
+  saveStoredBirthday,
   getStoredGuests,
   getStoredTables,
   saveStoredGuests,
@@ -15,6 +16,7 @@ import {
   getAdminAuth,
 } from './utils/storage';
 import { recalculateTableOccupancy } from './utils/seating';
+import { normalizeIndianMobile } from './utils/validation';
 
 function AppContent() {
   const [birthdayDetails, setBirthdayDetails] = useState(getStoredBirthday);
@@ -37,27 +39,31 @@ function AppContent() {
 
   // RSVP Submission from Public Page
   const handleSaveRSVP = (newGuest) => {
-    // Check if duplicate mobile exists
-    const existingIndex = guests.findIndex(g => g.mobileNumber === newGuest.mobileNumber);
-    let updatedGuests;
-    if (existingIndex >= 0) {
-      updatedGuests = [...guests];
-      updatedGuests[existingIndex] = { ...updatedGuests[existingIndex], ...newGuest };
-    } else {
-      updatedGuests = [newGuest, ...guests];
+    const norm = normalizeIndianMobile(newGuest.mobileNumber);
+    const existing = guests.find(g => normalizeIndianMobile(g.mobileNumber) === norm);
+    if (existing) {
+      throw new Error('This mobile number is already registered. Please contact the administrator if you need to update your registration.');
     }
+
+    const updatedGuests = [
+      { ...newGuest, mobileNumber: norm },
+      ...guests,
+    ];
     syncGuestsAndTables(updatedGuests);
   };
 
   // Add or Edit guest from Admin
   const handleSaveGuestFromAdmin = (guest) => {
+    const norm = normalizeIndianMobile(guest.mobileNumber);
+    const sanitizedGuest = { ...guest, mobileNumber: norm };
+
     const index = guests.findIndex(g => g.id === guest.id);
     let updated;
     if (index >= 0) {
       updated = [...guests];
-      updated[index] = guest;
+      updated[index] = sanitizedGuest;
     } else {
-      updated = [guest, ...guests];
+      updated = [sanitizedGuest, ...guests];
     }
     syncGuestsAndTables(updated);
   };
@@ -87,6 +93,12 @@ function AppContent() {
     syncGuestsAndTables(importedGuests);
   };
 
+  // Update birthday event settings
+  const handleSaveBirthdayDetails = (updatedDetails) => {
+    const enriched = saveStoredBirthday(updatedDetails);
+    setBirthdayDetails(enriched);
+  };
+
   // Reset to initial demo default data
   const handleResetDefaults = () => {
     const { birthday, guests: defGuests, tables: defTables } = resetToDefaultData();
@@ -98,7 +110,7 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* Universal Top Navigation */}
-      <Navbar />
+      <Navbar birthdayDetails={birthdayDetails} />
 
       {/* Main Routed Content */}
       <div className="flex-1">
@@ -141,6 +153,7 @@ function AppContent() {
                   onUpdateTableCapacity={handleUpdateTableCapacity}
                   onImportGuests={handleImportGuests}
                   onResetDefaults={handleResetDefaults}
+                  onSaveBirthdayDetails={handleSaveBirthdayDetails}
                 />
               ) : (
                 <Navigate to="/admin/login" replace />

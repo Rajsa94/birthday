@@ -2,16 +2,37 @@
   "personName": "Aria Sharma",
   "celebrationTitle": "Aria's 25th Milestone Birthday Bash",
   "tagline": "A Silver Jubilee Celebration of Elegance, Laughter & Joy",
-  "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-  "cakeIllustrationUrl": "https://images.unsplash.com/photo-1535141192574-5d4897c13136?auto=format&fit=crop&w=800&q=80",
-  "eventDate": "2026-12-18",
-  "eventDateTime": "2026-12-18T19:00:00",
+  "birthdayDate": "2026-12-18",
+  "partyStartTime": "19:00",
+  "partyEndTime": "23:30",
   "displayDate": "Friday, December 18, 2026",
-  "displayTime": "07:00 PM onwards",
+  "displayTime": "07:00 PM – 11:30 PM",
   "venueName": "The Grand Crystal Ballroom",
   "venueAddress": "Royal Orchid Palace, 108 Boulevard Heights, Indiranagar, Bengaluru, Karnataka 560038",
   "googleMapsUrl": "https://maps.google.com/?q=The+Grand+Crystal+Ballroom+Bengaluru",
   "invitationMessage": "Join us under the shimmering chandeliers for an unforgettable evening of joy, live music, gourmet dining, and celebratory toasts as we celebrate Aria's 25th Birthday in style!",
+  "hostContact": "9876543210",
   "dressCode": "Festive Glam / Cocktail Attire",
-  "hostContact": "+91 98765 43210"
+  "themeColor": "purple",
+  "profileImage": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+  "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
+  "backgroundImage": "",
+  "cakeImage": "https://images.unsplash.com/photo-1535141192574-5d4897c13136?auto=format&fit=crop&w=800&q=80",
+  "galleryImages": [
+    {
+      "id": 1,
+      "url": "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=700&q=80",
+      "caption": "Cherished Memories with Friends"
+    },
+    {
+      "id": 2,
+      "url": "https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=700&q=80",
+      "caption": "Sweet Moments & Celebrations"
+    },
+    {
+      "id": 3,
+      "url": "https://images.unsplash.com/photo-1527529482837-4698179dc6ce?auto=format&fit=crop&w=700&q=80",
+      "caption": "Dancing Under the Lights"
+    }
+  ]
 }

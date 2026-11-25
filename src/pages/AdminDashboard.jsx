@@ -2,8 +2,11 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Settings,
+  UserPlus,
   Users,
   Armchair,
+  Image as ImageIcon,
   FileSpreadsheet,
   FileJson,
   Upload,
@@ -14,17 +17,18 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  Check,
   Eye,
-  Settings,
-  PartyPopper
+  PartyPopper,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import DashboardCard from '../components/DashboardCard';
 import GuestTable from '../components/GuestTable';
 import SeatingCards from '../components/SeatingCards';
 import GuestModal from '../components/GuestModal';
+import BirthdaySummaryCard from '../components/BirthdaySummaryCard';
+import BirthdaySettings from '../components/BirthdaySettings';
+import AddGuestForm from '../components/AddGuestForm';
+import ImageGalleryManager from '../components/ImageGalleryManager';
 import { exportToExcel } from '../utils/excelExport';
 import { downloadJSON, validateGuestImport } from '../utils/jsonExport';
 import { setAdminAuth } from '../utils/storage';
@@ -39,14 +43,16 @@ export default function AdminDashboard({
   onUpdateTableCapacity,
   onImportGuests,
   onResetDefaults,
+  onSaveBirthdayDetails,
 }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
   // Active navigation tab
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'guests' | 'seating' | 'data'
+  // 'overview' | 'birthday-settings' | 'add-guest' | 'guests' | 'seating' | 'gallery' | 'data'
+  const [activeTab, setActiveTab] = useState('overview');
 
-  // Guest edit/add modal state
+  // Guest edit modal state
   const [isGuestModalOpen, setIsGuestModalOpen] = useState(false);
   const [guestToEdit, setGuestToEdit] = useState(null);
 
@@ -103,6 +109,11 @@ export default function AdminDashboard({
     showBanner('All table seating data downloaded as birthday-tables.json');
   };
 
+  const handleExportBirthdayJSON = () => {
+    downloadJSON(birthdayDetails, 'birthday-details.json');
+    showBanner('Birthday event settings exported as birthday-details.json');
+  };
+
   // JSON Import
   const handleTriggerFileInput = () => {
     if (fileInputRef.current) {
@@ -134,11 +145,6 @@ export default function AdminDashboard({
     e.target.value = ''; // reset file input
   };
 
-  const handleOpenAddGuest = () => {
-    setGuestToEdit(null);
-    setIsGuestModalOpen(true);
-  };
-
   const handleOpenEditGuest = (guest) => {
     setGuestToEdit(guest);
     setIsGuestModalOpen(true);
@@ -147,8 +153,17 @@ export default function AdminDashboard({
   const handleResetData = () => {
     if (window.confirm('Are you sure you want to restore the initial demo data? Any unsaved local edits will be reset.')) {
       onResetDefaults();
-      showBanner('Application state reset to initial JSON default data.');
+      showBanner('Application state reset to initial default demo data.');
     }
+  };
+
+  // Gallery update handler
+  const handleUpdateGallery = (updatedGallery) => {
+    onSaveBirthdayDetails({
+      ...birthdayDetails,
+      galleryImages: updatedGallery,
+    });
+    showBanner('Photo gallery updated successfully!');
   };
 
   return (
@@ -174,13 +189,16 @@ export default function AdminDashboard({
             </div>
             <div>
               <h2 className="font-serif font-bold text-base text-white">Event Admin</h2>
-              <span className="text-[11px] text-pink-400 font-medium">{birthdayDetails.personName}'s Bash</span>
+              <span className="text-[11px] text-pink-400 font-medium truncate block max-w-[140px]">
+                {birthdayDetails.personName}'s Bash
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Navigation Links */}
-        <nav className="p-4 space-y-1.5 flex-1 text-xs sm:text-sm font-semibold">
+        {/* Navigation Links per user requirement */}
+        <nav className="p-4 space-y-1 flex-1 text-xs sm:text-sm font-semibold">
+          {/* 1. Dashboard */}
           <button
             onClick={() => setActiveTab('overview')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
@@ -190,9 +208,36 @@ export default function AdminDashboard({
             }`}
           >
             <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard Overview</span>
+            <span>Dashboard</span>
           </button>
 
+          {/* 2. Birthday Settings */}
+          <button
+            onClick={() => setActiveTab('birthday-settings')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'birthday-settings'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            <span>Birthday Settings</span>
+          </button>
+
+          {/* 3. Add Guest */}
+          <button
+            onClick={() => setActiveTab('add-guest')}
+            className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'add-guest'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Add Guest</span>
+          </button>
+
+          {/* 4. Guest Management */}
           <button
             onClick={() => setActiveTab('guests')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
@@ -210,6 +255,7 @@ export default function AdminDashboard({
             </span>
           </button>
 
+          {/* 5. Seating Management */}
           <button
             onClick={() => setActiveTab('seating')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
@@ -227,6 +273,25 @@ export default function AdminDashboard({
             </span>
           </button>
 
+          {/* 6. Image Gallery */}
+          <button
+            onClick={() => setActiveTab('gallery')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all ${
+              activeTab === 'gallery'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <ImageIcon className="w-4 h-4" />
+              <span>Image Gallery</span>
+            </div>
+            <span className="text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300">
+              {(birthdayDetails.galleryImages || []).length}
+            </span>
+          </button>
+
+          {/* 7. JSON Backup & Restore */}
           <button
             onClick={() => setActiveTab('data')}
             className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
@@ -236,11 +301,11 @@ export default function AdminDashboard({
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span>Excel & JSON Data</span>
+            <span>JSON Backup & Restore</span>
           </button>
         </nav>
 
-        {/* Quick Excel Download button on Sidebar */}
+        {/* Footer actions */}
         <div className="p-4 border-t border-slate-800 space-y-2">
           <button
             onClick={handleExportExcel}
@@ -259,12 +324,13 @@ export default function AdminDashboard({
             <span>Preview Public Page</span>
           </Link>
 
+          {/* 8. Logout */}
           <button
             onClick={handleLogout}
             className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 flex items-center justify-center gap-2 transition-all"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+            <span>Logout</span>
           </button>
         </div>
       </aside>
@@ -277,19 +343,22 @@ export default function AdminDashboard({
           <div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black text-slate-900 tracking-tight">
               {activeTab === 'overview' && 'Event & Guest Dashboard'}
+              {activeTab === 'birthday-settings' && 'Birthday Settings & Customization'}
+              {activeTab === 'add-guest' && 'Add Guest (Manual Registration)'}
               {activeTab === 'guests' && 'Guest Roster & Registrations'}
               {activeTab === 'seating' && 'Banquet Seating Arrangement'}
-              {activeTab === 'data' && 'Data Sync, Import & Export'}
+              {activeTab === 'gallery' && 'Celebration Image Gallery'}
+              {activeTab === 'data' && 'JSON Backup, Sync & Excel Export'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Celebrating {birthdayDetails.personName}'s 25th • {birthdayDetails.displayDate}
+              Celebrating {birthdayDetails.personName}'s Bash • {birthdayDetails.displayDate || birthdayDetails.birthdayDate}
             </p>
           </div>
 
           {/* Action Toolbar */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={handleOpenAddGuest}
+              onClick={() => setActiveTab('add-guest')}
               className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 shadow-sm flex items-center gap-1.5 transition-all"
             >
               <Plus className="w-4 h-4" />
@@ -332,10 +401,18 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 1: OVERVIEW */}
+        {/* TAB 1: DASHBOARD OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
             
+            {/* Birthday Summary Card Requirement */}
+            <BirthdaySummaryCard
+              birthdayDetails={birthdayDetails}
+              totalRegisteredGuests={totalRegisteredGuests}
+              totalMembersAttending={totalMembersAttending}
+              onEditClick={() => setActiveTab('birthday-settings')}
+            />
+
             {/* 7 Summary Cards as requested by user */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <DashboardCard
@@ -520,7 +597,31 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 2: GUEST MANAGEMENT */}
+        {/* TAB 2: BIRTHDAY SETTINGS */}
+        {activeTab === 'birthday-settings' && (
+          <BirthdaySettings
+            birthdayDetails={birthdayDetails}
+            onSaveBirthdayDetails={(updated) => {
+              onSaveBirthdayDetails(updated);
+              showBanner('Birthday details updated successfully!');
+            }}
+          />
+        )}
+
+        {/* TAB 3: ADD GUEST (MANUAL REGISTRATION) */}
+        {activeTab === 'add-guest' && (
+          <AddGuestForm
+            tables={tables}
+            guests={guests}
+            onSaveGuest={(guest) => {
+              onSaveGuest(guest);
+              showBanner(`Guest "${guest.guestName}" registered successfully!`);
+            }}
+            onViewGuestList={() => setActiveTab('guests')}
+          />
+        )}
+
+        {/* TAB 4: GUEST MANAGEMENT */}
         {activeTab === 'guests' && (
           <div className="space-y-4">
             <GuestTable
@@ -532,7 +633,7 @@ export default function AdminDashboard({
           </div>
         )}
 
-        {/* TAB 3: SEATING MANAGEMENT */}
+        {/* TAB 5: SEATING MANAGEMENT */}
         {activeTab === 'seating' && (
           <SeatingCards
             tables={tables}
@@ -542,13 +643,21 @@ export default function AdminDashboard({
           />
         )}
 
-        {/* TAB 4: DATA EXPORT & IMPORT */}
+        {/* TAB 6: IMAGE GALLERY */}
+        {activeTab === 'gallery' && (
+          <ImageGalleryManager
+            galleryImages={birthdayDetails.galleryImages || []}
+            onUpdateGallery={handleUpdateGallery}
+          />
+        )}
+
+        {/* TAB 7: JSON BACKUP & RESTORE */}
         {activeTab === 'data' && (
           <div className="space-y-6 text-left">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm space-y-5">
               <div>
                 <h3 className="text-xl font-serif font-bold text-slate-900">
-                  Data Persistence & Synchronized Backups
+                  JSON Backup, Sync & Data Portability
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Export your live application state to Excel (.xlsx) and JSON files, or import an existing guest JSON dataset.
@@ -559,24 +668,24 @@ export default function AdminDashboard({
               <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 text-xs text-purple-900 space-y-1">
                 <span className="font-bold uppercase tracking-wider text-[11px] text-purple-700 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  Frontend LocalStorage Persistence Architecture
+                  Frontend Persistence Architecture
                 </span>
                 <p className="text-slate-600">
-                  Changes to guests, tables, and reservations are persisted instantaneously in your browser's <strong>LocalStorage</strong> across refreshes. You can also download updated JSON copies or Excel workbooks at any moment.
+                  All guest reservations, seat bookings, custom images, and birthday settings are persisted in your browser's <strong>LocalStorage & IndexedDB</strong> across page reloads.
                 </p>
               </div>
 
               {/* Export Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                 {/* Excel Export */}
                 <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <FileSpreadsheet className="w-5 h-5" />
+                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-3 shadow-sm">
+                      <FileSpreadsheet className="w-4 h-4" />
                     </div>
-                    <h4 className="font-bold text-slate-900 text-sm">Download Excel (.xlsx)</h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Includes 2 sheets: "Guest List" and "Table Summary" with all occupancy numbers.
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Download Excel (.xlsx)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Includes 2 sheets: "Guest List" & "Table Summary".
                     </p>
                   </div>
                   <button
@@ -591,12 +700,12 @@ export default function AdminDashboard({
                 {/* JSON Guest Export */}
                 <div className="p-5 rounded-2xl border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <FileJson className="w-5 h-5" />
+                    <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center mb-3 shadow-sm">
+                      <FileJson className="w-4 h-4" />
                     </div>
-                    <h4 className="font-bold text-slate-900 text-sm">Export Guests (JSON)</h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Downloads all {guests.length} guest records in structured JSON array format.
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Guests (JSON)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      All {guests.length} guest records.
                     </p>
                   </div>
                   <button
@@ -611,12 +720,12 @@ export default function AdminDashboard({
                 {/* JSON Table Export */}
                 <div className="p-5 rounded-2xl border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
                   <div>
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-3 shadow-sm">
-                      <Armchair className="w-5 h-5" />
+                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-3 shadow-sm">
+                      <Armchair className="w-4 h-4" />
                     </div>
-                    <h4 className="font-bold text-slate-900 text-sm">Export Tables (JSON)</h4>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Downloads all {tables.length} table records with current capacities and seats.
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Tables (JSON)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      All {tables.length} table records.
                     </p>
                   </div>
                   <button
@@ -625,6 +734,26 @@ export default function AdminDashboard({
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Export tables.json</span>
+                  </button>
+                </div>
+
+                {/* JSON Birthday Details Export */}
+                <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/50 flex flex-col justify-between">
+                  <div>
+                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center mb-3 shadow-sm">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <h4 className="font-bold text-slate-900 text-xs sm:text-sm">Export Settings (JSON)</h4>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Venue, times, & themes.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleExportBirthdayJSON}
+                    className="mt-4 w-full py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export settings.json</span>
                   </button>
                 </div>
               </div>
@@ -676,7 +805,7 @@ export default function AdminDashboard({
         )}
       </main>
 
-      {/* Guest Add / Edit Modal */}
+      {/* Guest Edit Modal */}
       <GuestModal
         isOpen={isGuestModalOpen}
         onClose={() => {
