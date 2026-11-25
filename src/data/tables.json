@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "tableName": "Table 1",
+    "capacity": 8,
+    "occupiedSeats": 5,
+    "availableSeats": 3
+  },
+  {
+    "id": 2,
+    "tableName": "Table 2",
+    "capacity": 8,
+    "occupiedSeats": 8,
+    "availableSeats": 0
+  },
+  {
+    "id": 3,
+    "tableName": "Table 3",
+    "capacity": 8,
+    "occupiedSeats": 3,
+    "availableSeats": 5
+  },
+  {
+    "id": 4,
+    "tableName": "Table 4",
+    "capacity": 8,
+    "occupiedSeats": 4,
+    "availableSeats": 4
+  },
+  {
+    "id": 5,
+    "tableName": "Table 5",
+    "capacity": 8,
+    "occupiedSeats": 0,
+    "availableSeats": 8
+  }
+]
