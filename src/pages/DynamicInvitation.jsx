@@ -39,6 +39,9 @@ export default function DynamicInvitation({
   const [rsvpInitialStatus, setRsvpInitialStatus] = useState('Attending');
   const [activeGalleryModal, setActiveGalleryModal] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showHeroArtInMain, setShowHeroArtInMain] = useState(false);
+  const [mainImgFailed, setMainImgFailed] = useState(false);
+  const [secondaryImgFailed, setSecondaryImgFailed] = useState(false);
 
   if (!occasion) {
     return (
@@ -164,8 +167,109 @@ export default function DynamicInvitation({
         {/* Hero Showcase (Photos & Custom Occasion Centerpiece) */}
         <div className="mt-10 mb-12 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-14">
           
-          {/* Main Portrait Showcase if photo available */}
-          {profilePhoto ? (
+          {/* Main Portrait Showcase / Thematic Hero Art Showcase */}
+          <div className="relative group flex flex-col items-center">
+            
+            {/* View Mode Switcher Pill (Only if a photo was provided and is working) */}
+            {profilePhoto && !mainImgFailed && (
+              <div className="mb-2.5 z-20 inline-flex items-center p-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[11px] shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setShowHeroArtInMain(false)}
+                  className={`px-2.5 py-0.5 rounded-full font-bold transition-all ${
+                    !showHeroArtInMain
+                      ? 'bg-white text-purple-950 shadow'
+                      : 'text-purple-200 hover:text-white'
+                  }`}
+                >
+                  📸 Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowHeroArtInMain(true)}
+                  className={`px-2.5 py-0.5 rounded-full font-bold transition-all ${
+                    showHeroArtInMain
+                      ? 'bg-amber-400 text-purple-950 shadow'
+                      : 'text-purple-200 hover:text-white'
+                  }`}
+                >
+                  🎨 Hero Art
+                </button>
+              </div>
+            )}
+
+            {/* Main Showcase Circle */}
+            <div className="relative">
+              {/* Animated Glowing Aura */}
+              <div
+                className="absolute -inset-2 rounded-full blur-xl opacity-75 group-hover:opacity-100 transition duration-500 animate-pulse-glow"
+                style={{
+                  background: `linear-gradient(45deg, ${themeColors.primary}, ${themeColors.accent}, ${themeColors.secondary})`,
+                }}
+              ></div>
+
+              <div
+                className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 rounded-full overflow-hidden border-4 shadow-2xl bg-slate-900 flex items-center justify-center"
+                style={{ borderColor: themeColors.accent }}
+              >
+                {profilePhoto && !mainImgFailed && !showHeroArtInMain ? (
+                  /* 1. Real Uploaded Profile Photo */
+                  <img
+                    src={profilePhoto}
+                    alt={occasion.personName || occasion.title}
+                    onError={() => setMainImgFailed(true)}
+                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  /* 2. THEMATIC MAIN HERO SHOWCASE ART */
+                  <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center relative overflow-hidden select-none bg-gradient-to-tr from-slate-950 via-purple-950 to-slate-900">
+                    {/* Ambient Radial Glow */}
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(245,158,11,0.25),transparent_70%)] animate-pulse"></div>
+                    
+                    {/* Thematic Occasion Graphic */}
+                    <div className="relative z-10 flex flex-col items-center">
+                      <div className="text-4xl sm:text-5xl mb-1.5 filter drop-shadow-lg transform group-hover:scale-110 transition-transform duration-300 animate-bounce">
+                        {catalogItem?.emoji || '🎉'}
+                      </div>
+                      
+                      <span className="font-serif font-black text-white text-sm sm:text-base tracking-tight leading-tight px-2 drop-shadow-md">
+                        {occasion.personName || occasion.hostName || catalogItem?.name || 'Celebration'}
+                      </span>
+
+                      {occasion.age ? (
+                        <span className="mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400 text-purple-950 shadow-md">
+                          {occasion.age}th Milestone
+                        </span>
+                      ) : (
+                        <span className="mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/10 text-amber-300 border border-white/20">
+                          {baseTheme?.bannerTag || catalogItem?.badgeText || 'VIP Celebration'}
+                        </span>
+                      )}
+
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-pink-300 font-bold">
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Hero Showcase Art</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Celebrant / Occasion Tag Badge */}
+              <div
+                className="absolute bottom-2 right-2 text-white font-bold text-xs sm:text-sm px-3.5 py-1 rounded-full shadow-lg border border-white flex items-center gap-1.5 z-10"
+                style={{
+                  background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
+                }}
+              >
+                <span>{catalogItem?.emoji || '🎉'}</span>
+                <span>{occasion.personName || occasion.hostName || catalogItem?.name}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary Photo (e.g. Groom for Wedding or Partner) */}
+          {secondaryPhoto && (
             <div className="relative group">
               <div
                 className="absolute -inset-2 rounded-full blur-xl opacity-70 group-hover:opacity-100 transition duration-500 animate-pulse-glow"
@@ -175,41 +279,22 @@ export default function DynamicInvitation({
               ></div>
 
               <div
-                className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-64 md:h-64 rounded-full overflow-hidden border-4 shadow-2xl bg-slate-900"
+                className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 shadow-2xl bg-slate-900 flex items-center justify-center"
                 style={{ borderColor: themeColors.accent }}
               >
-                <img
-                  src={profilePhoto}
-                  alt={occasion.personName || occasion.title}
-                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                />
-              </div>
-
-              {/* Tag Badge */}
-              <div
-                className="absolute bottom-2 right-2 text-white font-bold text-xs sm:text-sm px-3.5 py-1 rounded-full shadow-lg border border-white flex items-center gap-1.5"
-                style={{
-                  background: `linear-gradient(135deg, ${themeColors.primary}, ${themeColors.secondary})`,
-                }}
-              >
-                <span>{catalogItem.emoji}</span>
-                <span>{occasion.personName || occasion.hostName || catalogItem.name}</span>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Secondary Photo (e.g. Groom for Wedding or Partner) */}
-          {secondaryPhoto && (
-            <div className="relative group">
-              <div
-                className="relative w-44 h-44 sm:w-52 sm:h-52 rounded-full overflow-hidden border-4 shadow-2xl bg-slate-900"
-                style={{ borderColor: themeColors.accent }}
-              >
-                <img
-                  src={secondaryPhoto}
-                  alt={occasion.groomName || 'Partner'}
-                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
-                />
+                {!secondaryImgFailed ? (
+                  <img
+                    src={secondaryPhoto}
+                    alt={occasion.groomName || 'Partner'}
+                    onError={() => setSecondaryImgFailed(true)}
+                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-gradient-to-tr from-rose-950 via-slate-900 to-amber-950 select-none">
+                    <span className="text-3xl mb-1">💍</span>
+                    <span className="font-serif font-bold text-white text-xs">{occasion.groomName || 'Partner'}</span>
+                  </div>
+                )}
               </div>
               <div
                 className="absolute bottom-2 right-2 text-white font-bold text-xs px-3 py-1 rounded-full shadow border border-white"

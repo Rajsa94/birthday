@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Sliders,
+  Camera,
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 
@@ -231,6 +232,75 @@ export default function DynamicOccasionForm({
                 className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
               />
             </div>
+          </div>
+        </div>
+
+        {/* IMAGE & MEDIA UPLOAD MANAGEMENT */}
+        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-5">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-sm">
+              <Camera className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-base text-slate-900">
+                Showcase Media & Image Uploads
+              </h3>
+              <p className="text-xs text-slate-400">
+                Upload images from your computer (JPG, PNG, WEBP, up to 5 MB). Displayed in the Hero Showcase.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* 1. Main Profile Photo / Portrait */}
+            <div>
+              <ImageUploader
+                label="Main Profile Photo / Portrait"
+                helperText="Primary Showcase Circle Photo"
+                currentImage={formData.profileImage}
+                onImageChange={(img) => setFormData((prev) => ({ ...prev, profileImage: img }))}
+                onImageRemove={() => setFormData((prev) => ({ ...prev, profileImage: '' }))}
+                aspectRatio="square"
+              />
+            </div>
+
+            {/* 2. Custom Centerpiece / Cake Image */}
+            <div>
+              <ImageUploader
+                label="Custom Centerpiece / Cake Graphic"
+                helperText="Optional custom photo (replaces default SVG art)"
+                currentImage={formData.cakeImage}
+                onImageChange={(img) => setFormData((prev) => ({ ...prev, cakeImage: img }))}
+                onImageRemove={() => setFormData((prev) => ({ ...prev, cakeImage: '' }))}
+                aspectRatio="square"
+              />
+            </div>
+
+            {/* 3. Invitation Background Image */}
+            <div>
+              <ImageUploader
+                label="Invitation Background Wallpaper"
+                helperText="Subtle Background Wallpaper (Optional)"
+                currentImage={formData.backgroundImage}
+                onImageChange={(img) => setFormData((prev) => ({ ...prev, backgroundImage: img }))}
+                onImageRemove={() => setFormData((prev) => ({ ...prev, backgroundImage: '' }))}
+                aspectRatio="card"
+              />
+            </div>
+
+            {/* 4. Partner / Secondary Photo (for weddings, engagements & anniversaries) */}
+            {(occasionType === 'wedding' || occasionType === 'anniversary' || occasionType === 'engagement') && (
+              <div className="md:col-span-3 pt-3 border-t border-slate-100">
+                <ImageUploader
+                  label="Groom / Partner Portrait Photo"
+                  helperText="Partner Photo for Couple Showcase"
+                  currentImage={formData.secondaryImage}
+                  onImageChange={(img) => setFormData((prev) => ({ ...prev, secondaryImage: img }))}
+                  onImageRemove={() => setFormData((prev) => ({ ...prev, secondaryImage: '' }))}
+                  aspectRatio="square"
+                />
+              </div>
+            )}
           </div>
         </div>
 

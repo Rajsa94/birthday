@@ -19,14 +19,17 @@ export default function OccasionHeroGraphic({
     });
   };
 
-  // If user uploaded a custom hero / cake image, show it framed gracefully
-  if (customImage) {
+  const [customImgFailed, setCustomImgFailed] = useState(false);
+
+  // If user uploaded a custom hero / cake image (e.g. Base64 upload from disk), show it framed gracefully
+  if (customImage && !customImgFailed && (customImage.startsWith('data:') || customImage.startsWith('blob:'))) {
     return (
       <div className="relative group text-center select-none">
         <div className="w-56 sm:w-64 h-56 sm:h-64 rounded-3xl overflow-hidden border-4 border-amber-300/80 shadow-2xl bg-slate-900 group-hover:scale-105 transition-transform duration-300">
           <img
             src={customImage}
             alt={occasion.occasionName || 'Celebration Centerpiece'}
+            onError={() => setCustomImgFailed(true)}
             className="w-full h-full object-cover"
           />
         </div>
